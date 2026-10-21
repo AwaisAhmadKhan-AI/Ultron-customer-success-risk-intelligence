@@ -1,182 +1,126 @@
-# Customer Success Risk Intelligence Platform — API Contract
+# Ultron — API Contract (Implemented Route Map)
 
-**Version:** 0.2 — updated to owner decisions
-**Status:** Proposed v1 contract; adjust after implementation tests if a concrete reason appears.
+**Status date:** 2026-10-21  
+**Base prefix:** `/api/v1`  
+**Purpose:** A concise route map based on the current frontend integration and implemented resource families. The running FastAPI OpenAPI schema remains the final authority for exact field constraints and response schemas.
 
-## 1. API principles
+## 1. Common contract rules
 
-- Base path: `/api/v1` (proposed).
-- JSON request/response bodies except document upload, which uses `multipart/form-data`.
-- Authentication is required for protected endpoints.
-- Every account-scoped operation enforces resource-level authorization on the backend.
-- Do not accept a client-supplied `account_id` as proof of permission.
-- List endpoints are paginated and impose a maximum page size.
-- Use Pydantic request/response schemas; do not expose password hashes or internal secrets.
-- Enum and type errors return HTTP 422.
+- Protected routes use JWT bearer authentication.
+- Account-scoped requests must be authorized by the backend against the current CSM's account assignments.
+- Account or child-record IDs supplied by the browser are identifiers, not proof of permission.
+- JSON bodies are used for normal create/update operations. Document upload uses `multipart/form-data`.
+- The frontend reads an API error's `detail` value where available and shows safe error feedback.
+- Never return password hashes, API keys or raw secret configuration in API responses or logs.
 
-## 2. Common response and errors
+## 2. Authentication
 
-Successful single-resource response (illustrative):
-
-```json
-{
-  "data": {
-    "id": "<uuid>",
-    "name": "Acme Inc."
-  }
-}
-```
-
-Successful list response (illustrative):
-
-```json
-{
-  "data": [],
-  "pagination": {"limit": 20, "offset": 0, "total": 0}
-}
-```
-
-Error response (illustrative):
-
-```json
-{
-  "error": {
-    "code": "RESOURCE_FORBIDDEN",
-    "message": "You are not allowed to access this resource.",
-    "request_id": "<correlation-id>"
-  }
-}
-```
-
-Do not return stack traces, raw SQL errors, API keys, or unfiltered provider responses.
-
-## 3. Authentication / current user
-
-| Method | Endpoint | Purpose |
+| Method | Path | Purpose |
 |---|---|---|
-| `POST` | `/api/v1/auth/login` | Verify credentials and return a JWT access token |
-| `GET` | `/api/v1/me` | Return the current user's public profile and role |
+| `POST` | `/api/v1/auth/login` | Accepts URL-encoded login credentials and returns a bearer access token on success |
+| `GET` | `/api/v1/auth/me` | Returns the currently authenticated user's profile |
 
-V1 uses JWT bearer authentication. Proposed endpoints: `POST /api/v1/auth/login` returns an access token; `GET /api/v1/me` returns the current user profile. Do not return password hashes or tokens in logs.
+Invalid credentials/token paths are covered by authentication integration tests. Protected resources require a valid active user.
 
-## 4. Accounts
+## 3. Accounts and overview
 
-| Method | Endpoint | Purpose |
+| Method | Path | Purpose |
 |---|---|---|
-| `GET` | `/api/v1/accounts` | List authorized accounts with filtering, sorting, pagination |
-| `POST` | `/api/v1/accounts` | Create an account and assign it to the creating CSM in the same transaction |
-| `GET` | `/api/v1/accounts/{account_id}` | Get authorized account detail |
-| `PATCH` | `/api/v1/accounts/{account_id}` | Update allowed account fields |
-| `POST` | `/api/v1/accounts/{account_id}/archive` | Archive account |
-| `POST` | `/api/v1/accounts/{account_id}/restore` | Restore an archived account if authorized |
+| `POST` | `/api/v1/accounts` | Create an account in the current user's permitted workflow |
+| `GET` | `/api/v1/accounts` | List authorized accounts with server-side search, filters and pagination |
+| `GET` | `/api/v1/accounts/{account_id}` | Read an authorized account |
+| `PATCH` | `/api/v1/accounts/{account_id}` | Update supported account fields |
+| `POST` | `/api/v1/accounts/{account_id}/archive` | Archive account without hard deletion |
+| `POST` | `/api/v1/accounts/{account_id}/unarchive` | Restore an archived account |
+| `GET` | `/api/v1/accounts/{account_id}/overview` | Return account overview and related summary records |
 
-Proposed list query parameters:
+Implemented account-list filters used by the frontend include `page`, `page_size`, `q`, `status`, `risk_level`, `renewal_within_days`, `has_open_tasks`, and `include_archived`. Exact allowed values and bounds are enforced by backend schemas/query validation.
 
-- `q`: search by account name; industry/domain only if included in the schema.
-- `risk_level`: repeated or comma-separated low/medium/high/critical values; choose one stable representation.
-- `status`: active/renewal_pending/churned. `at_risk` belongs to the separate risk-level concept, not the account status enum.
-- `renewal_within_days`: supported integer window such as 30, 60, 90.
-- `has_open_tasks`: boolean.
-- `include_archived`: default false; permission-checked.
-- `sort_by`: allow-listed value (`renewal_date`, `risk_level`, `last_interaction_at`).
-- `limit`: default 20; maximum 100 (proposed).
-- `offset`: default 0; non-negative.
+## 4. Account-scoped records
 
-Authorization scope must be applied before all these filters.
+Every route below must first authorize the parent account and ensure the referenced child record belongs to it.
 
-## 5. Account-scoped records
+### Contacts
 
-The following endpoint patterns reflect v1 decisions; all endpoints still require authentication, account-scope authorization, schema validation, and tests.
-
-| Entity | Proposed endpoint | Main operations |
+| Method | Path | Purpose |
 |---|---|---|
-| Contacts | `/api/v1/accounts/{account_id}/contacts` | GET list, POST create; GET/PATCH/DELETE individual contact; DELETE is scoped to authorized account and must respect FK integrity |
-| Interactions | `/api/v1/accounts/{account_id}/interactions` | GET list, POST create; limited correction/update, archive only under an explicit rule |
-| Tasks | `/api/v1/accounts/{account_id}/tasks` | GET list, POST create; GET/PATCH/DELETE individual task; mark done |
-| Risk signals | `/api/v1/accounts/{account_id}/risk-signals` | GET list, POST manual signal; acknowledge/resolve/dismiss actions |
-| Documents | `/api/v1/accounts/{account_id}/documents` | GET list, POST upload; GET metadata; archive |
-| AI insights | `/api/v1/accounts/{account_id}/ai-insights` | GET history, POST generate; GET a specific insight |
+| `POST` | `/api/v1/accounts/{account_id}/contacts` | Create contact |
+| `GET` | `/api/v1/accounts/{account_id}/contacts` | List contacts |
+| `GET` | `/api/v1/accounts/{account_id}/contacts/{contact_id}` | Read contact |
+| `PATCH` | `/api/v1/accounts/{account_id}/contacts/{contact_id}` | Update contact |
+| `POST` | `/api/v1/accounts/{account_id}/contacts/{contact_id}/archive` | Archive contact |
 
-Every route must verify account access and validate that child/source records refer to the same account.
+### Interactions
 
-## 6. Document ingestion
+| Method | Path | Purpose |
+|---|---|---|
+| `POST` | `/api/v1/accounts/{account_id}/interactions` | Record interaction |
+| `GET` | `/api/v1/accounts/{account_id}/interactions` | List interactions |
+| `GET` | `/api/v1/accounts/{account_id}/interactions/{interaction_id}` | Read interaction |
+| `PATCH` | `/api/v1/accounts/{account_id}/interactions/{interaction_id}` | Correct supported fields |
+| `POST` | `/api/v1/accounts/{account_id}/interactions/{interaction_id}/archive` | Archive interaction |
 
-`POST /api/v1/accounts/{account_id}/documents`
+### Tasks
 
-- Content type: `multipart/form-data`.
-- Input: one PDF, TXT, or Markdown file; DOCX excluded from v1.
-- Maximum upload size: 10 MB.
-- Backend checks authorization, extension/content type, size, and duplicate content hash.
-- Response indicates document ID and ingestion status; extraction can finish asynchronously or synchronously depending on the existing project and deadline. If asynchronous, expose status via `GET /api/v1/documents/{document_id}`.
-- Repeated upload of identical content to the same account must follow a documented idempotency/deduplication response.
+| Method | Path | Purpose |
+|---|---|---|
+| `POST` | `/api/v1/accounts/{account_id}/tasks` | Create follow-up task |
+| `GET` | `/api/v1/accounts/{account_id}/tasks` | List tasks |
+| `GET` | `/api/v1/accounts/{account_id}/tasks/{task_id}` | Read task |
+| `PATCH` | `/api/v1/accounts/{account_id}/tasks/{task_id}` | Update task fields |
+| `POST` | `/api/v1/accounts/{account_id}/tasks/{task_id}/complete` | Mark task completed |
+| `POST` | `/api/v1/accounts/{account_id}/tasks/{task_id}/cancel` | Cancel task |
 
-## 7. Generate AI insight
+### Risk signals
 
-`POST /api/v1/accounts/{account_id}/ai-insights`
+| Method | Path | Purpose |
+|---|---|---|
+| `POST` | `/api/v1/accounts/{account_id}/risk-signals` | Create risk signal |
+| `GET` | `/api/v1/accounts/{account_id}/risk-signals` | List risk signals |
+| `GET` | `/api/v1/accounts/{account_id}/risk-signals/{signal_id}` | Read risk signal |
+| `POST` | `/api/v1/accounts/{account_id}/risk-signals/{signal_id}/acknowledge` | Acknowledge signal |
+| `POST` | `/api/v1/accounts/{account_id}/risk-signals/{signal_id}/resolve` | Resolve signal |
+| `POST` | `/api/v1/accounts/{account_id}/risk-signals/{signal_id}/dismiss` | Dismiss signal; request body requires a `reason` |
 
-Proposed request:
+### Documents
 
-```json
-{
-  "question": "Why might this account be at risk?",
-  "include_interactions": true,
-  "include_documents": true
-}
-```
+| Method | Path | Purpose |
+|---|---|---|
+| `POST` | `/api/v1/accounts/{account_id}/documents` | Upload document using multipart field `file` and optional `title` |
+| `GET` | `/api/v1/accounts/{account_id}/documents` | List account documents |
+| `POST` | `/api/v1/accounts/{account_id}/documents/{document_id}/archive` | Archive document |
 
-Proposed successful response:
+Supported file extensions in the UI are PDF, TXT and Markdown; UI limit is 10 MB. Backend validation must remain the security boundary. Identical content uploaded again to the same account returns a conflict rather than silently duplicating the document.
 
-```json
-{
-  "data": {
-    "id": "<uuid>",
-    "account_id": "<uuid>",
-    "status": "completed",
-    "suggested_risk_level": "high",
-    "summary": "...",
-    "risk_factors": ["..."],
-    "recommended_actions": ["..."],
-    "confidence": "medium",
-    "evidence": [
-      {
-        "source_type": "document",
-        "source_id": "<verified-source-id>",
-        "title": "Renewal meeting notes",
-        "date": "2026-10-10",
-        "excerpt": "..."
-      }
-    ]
-  }
-}
-```
+### AI insights
 
-This is a proposed contract, not production code. Exact fields/values must match the selected provider, Pydantic schema, and data model. The model's citations must be matched to retrieved evidence before they are returned. The AI suggested risk never automatically overwrites `accounts.risk_level`.
+| Method | Path | Purpose |
+|---|---|---|
+| `POST` | `/api/v1/accounts/{account_id}/ai-insights` | Generate an account analysis for the submitted question |
 
-## 8. HTTP status conventions
+The request uses a JSON body containing the analysis `question`. The response includes insight status and, where available, summary, suggested risk, risk factors, recommended actions, confidence, and verified evidence. Recent insight summaries are presented through the account-overview data. The AI-suggested risk must not silently overwrite the stored account risk field.
 
-| Status | Use |
+## 5. HTTP error semantics
+
+Observed and/or required status behavior includes:
+
+| Status | Meaning |
 |---|---|
-| 200 | Successful read/update/action |
-| 201 | Resource created |
-| 202 | Processing accepted but not yet complete, if asynchronous ingestion is used |
-| 401 | Unauthenticated |
-| 403 | Authenticated but resource access is not permitted; required for the assignment's authorization attack test |
-| 404 | Resource not found, or consistently concealed by policy |
-| 409 | Duplicate upload/conflict when not returned as an idempotent success |
-| 413 | Upload exceeds maximum size |
-| 415 | Unsupported media type |
-| 422 | Invalid request or enum/filter values |
-| 429 | Provider/request rate limit when applicable |
-| 502/503/504 | Safe upstream/provider failure or timeout mapping, according to the API's agreed error contract |
+| `401` | Missing, invalid, expired or otherwise unacceptable authentication |
+| `403` | Authenticated user is not permitted to access the requested resource; the assignment's ID-tampering test expects `403` |
+| `404` | Resource does not exist (exact concealment policy should be applied consistently) |
+| `409` | Duplicate same-content document for an account |
+| `422` | Invalid request parameters or schema fields |
+| `5xx` | Unexpected backend/provider failure; do not expose internal secrets or stack traces to clients |
 
-Choose one consistent policy for inaccessible-vs-missing resources to avoid leaking resource existence.
+## 6. API contract verification checklist
 
-## 9. Required tests for the contract
+- Account listing never returns accounts outside the current CSM's scope.
+- Changing an account ID to another CSM's ID receives the expected forbidden response.
+- A child-record ID from another account is not accessible by manipulating the URL.
+- Document chunks and AI evidence are filtered by authorization before prompt construction.
+- Invalid/unknown citation IDs are rejected; insufficient evidence and provider failures are handled safely.
+- Repeating the same document upload follows the documented account-scoped deduplication rule.
+- Generated OpenAPI (`/docs`) is checked when routes or request/response schemas change.
 
-- Valid account list and detail requests return only allowed accounts.
-- Invalid filters return 422.
-- User A modifying a URL to use User B's account ID receives 403 (or the documented concealment behavior if approved by the lead; the assignment states 403).
-- Child records cannot be attached across account boundaries.
-- Duplicate file upload behaves according to the documented idempotency rule.
-- AI response with invalid schema or invented citations is not returned as a valid insight.
-- Insufficient-evidence request follows a safe no-answer behavior.
+**Maintenance note:** Update this document when a route, request body, allowed enum, or response schema changes. Do not leave a design-proposal endpoint in this map if the actual route uses a different path.

@@ -1,135 +1,111 @@
-# Customer Success Risk Intelligence Platform — Implementation Plan
+# Customer Success Risk Intelligence Platform — Implementation Plan and Current Handover
 
-**Version:** 0.2 — first implementation plan
-**Status:** Start from `E:\Ultron`; no frontend/backend source code exists yet.
+**Status date:** 2026-10-21  
+**Status:** Core v1 implementation and frontend modularization complete; final evaluation evidence and documentation alignment remain.
 
-## 1. Guiding principle
+## 1. Delivery principle
 
-Build a reliable non-AI application first, then add the AI/RAG layer. A chatbot must not hide broken CRUD, data modeling, or authorization. Work in small vertical slices and test each slice before extending it.
+Deliver a secure, reproducible non-AI workflow first, then AI/RAG capabilities. Treat AI output as advisory and validate it against authorized evidence. Track implemented behavior separately from measured outcomes; a green build does not imply all production-readiness criteria are met.
 
-## 2. Phase 0 — Discovery and architecture (Monday deliverables)
+## 2. Completed implementation phases
 
-- [x] Review `REQUIREMENTS.md` and record the owner's current v1 choices; revisit only if testing exposes a contradiction.
-- [ ] Finalize the seven entities and supporting tables in `DATA_MODEL.md`.
-- [ ] Document the component diagram and request flows in `ARCHITECTURE.md`.
-- [ ] Define initial REST endpoints, request/response schemas, status codes, and error contract in `API_CONTRACT.md`.
-- [ ] Define user/account scopes and AI/RAG security in `SECURITY_MODEL.md`.
-- [ ] Keep remaining unknowns visible instead of silently guessing.
-- [ ] Explain the architecture and its trade-offs before large-scale implementation; the assignment includes an architecture review gate.
+### Phase 0 — Requirements and design baseline
 
-**Exit check:** Explain the business problem, entity relationships, request path, authorization point, and AI evidence path without reading the document verbatim.
+- Requirements, architecture, data model, API contract, security model and original implementation plan documents exist.
+- Domain covers Accounts, Contacts, Interactions, Tasks, Risk Signals, Documents and AI Insights, plus users, account assignments, document chunks and insight evidence.
+- V1 authorization scope uses the `csm` role with account assignments. Manager/Admin roles are outside the documented v1 scope.
 
-## 3. Phase 1 — Product foundation (Tuesday target)
+### Phase 1 — Backend and product foundation
 
-### Step 1: Inspect and prepare the repository
-- Inspect existing frontend/backend structure and preserve useful conventions.
-- Verify Node 24, npm through `npm.cmd` if PowerShell blocks `npm.ps1`, Python 3.14, Git, and the installed PostgreSQL service/pgvector extension. Do not change PowerShell execution policy just to invoke npm.
-- Add `.env.example` with placeholders only and `.gitignore` entries for `.env`, virtual environments, node_modules, build outputs, and local uploads. Verify no actual key is committed. Rotate any key exposed in chat before configuring a local `.env`.
-- Check PostgreSQL Windows service and installation paths; `psql` not found may mean only the PATH is missing. Verify whether the pgvector extension is available before relying on it.
+- FastAPI app, Pydantic schemas, SQLAlchemy models, PostgreSQL configuration and Alembic migrations exist.
+- JWT login and current-user endpoints exist.
+- Account listing supports server-side filters and pagination; account-level access is enforced server-side.
+- Account-scoped APIs cover contacts, interactions, tasks, risk signals, documents and AI insights.
+- Archive/unarchive behaviors are supported for accounts; related entities follow their defined lifecycle actions.
 
-### Step 2: Backend foundation
-- Create the FastAPI app startup and configuration from an empty `backend/` directory.
-- Configure database engine/session lifecycle and a health endpoint.
-- Define SQLAlchemy models for agreed core tables.
-- Configure Alembic and create the initial migration.
-- Verify upgrade on an empty database; use a disposable test database for downgrade tests.
+### Phase 2 — Document and AI layer
 
-### Step 3: Authorization baseline
-- Implement email/password authentication with secure password hashing and JWT bearer tokens; keep resource authorization as a separate server-side check.
-- Create at least two CSM users and distinct account assignments in test seed data.
-- Add a reusable backend dependency/service that establishes allowed account scope.
-- Test a guessed/changed account ID and require 403 as specified.
+- Document upload accepts PDF, TXT and Markdown under the UI's 10 MB limit.
+- Document content hash and a database uniqueness constraint prevent duplicate same-content uploads within the same account.
+- Document chunking/embeddings and retrieval services exist.
+- AI insight creation validates output and citation source references; insufficient evidence and selected provider/output failures are handled safely.
+- Prompt-injection text is treated as untrusted content in the tested path. This is a defense layer, not a proof that every attack is prevented.
 
-### Step 4: Core CRUD vertical slices
-Recommended order:
-1. Accounts: list/detail/create/update/archive, pagination, filters; assign a newly created account to its creator in the same database transaction.
-2. Contacts: list/create/update/delete within an authorized account; define safe foreign-key behavior.
-3. Interactions/notes: create/list, limited correction and archival policy.
-4. Tasks: create/list/update/done with assignee, due date, priority, status.
-5. Risk signals: create/list/acknowledge/resolve/dismiss; retain the reason and history.
-6. Documents: metadata/upload validation and ingestion status; accept PDF/TXT/Markdown up to 10 MB (full RAG follows in Phase 2).
+### Phase 3 — Quality engineering
 
-Each feature includes schema validation, server authorization, error handling, and API tests before moving on.
+- Latest complete backend test run recorded: `53 passed`.
+- AI test coverage includes supported findings/recommendations, insufficient evidence, no-source behavior, citation/source validation, malformed output, provider failures and untrusted prompt-injection text.
+- A schema migration for `ix_account_assignments_user_id` was exercised through a downgrade/upgrade cycle on the isolated test database. The development database was checked at `cdf526010a2b (head)`.
+- Query-plan inspection showed use of the account-assignment index and lower buffer accesses in the observed comparison. Wall-clock samples were noisy; no numeric end-to-end improvement is claimed.
 
-### Step 5: Frontend/API integration
-- Scaffold React + TypeScript with Vite and configure Tailwind CSS. The installed Node 24 version exceeds Vite's current documented minimum (Node 20.19+ or 22.12+).
-- Connect account list/detail, contacts/interactions, and task workflow to real API responses.
-- Add loading, empty, validation error, forbidden, and server failure states.
-- Confirm persisted data is loaded from the API/database rather than only local mock state.
+### Phase 4 — Frontend delivery and repository handover
 
-**Exit check:** The application supports its core workflows without depending on AI.
+- React/TypeScript UI covers Overview, Accounts, Tasks and Documents & AI.
+- `App.tsx` was modularized into page files, shared UI, presentation utilities and shared type definitions.
+- Latest recorded frontend `npm run lint` and `npm run build` passed.
+- GitHub repository is `https://github.com/AwaisAhmadKhan-AI/Ultron-customer-success-risk-intelligence`.
+- Initial commit: `33a8673`; modularization commit: `c97c579`. Update the reported commit hash after any subsequent change.
 
-## 4. Phase 2 — AI and knowledge layer (Wednesday target)
+## 3. Final assessment work still required
 
-### Step 1: Document ingestion
-- Validate file extension/content type and size.
-- Calculate SHA-256 and handle duplicate uploads.
-- Extract text from PDF/TXT/Markdown; record extraction failures.
-- Split extracted text into chunks with stable IDs and metadata.
-- Persist chunks with account/document ownership.
+### Evaluation suite
 
-### Step 2: Embeddings and retrieval
-- Use Jina `jina-embeddings-v3` with 1024 dimensions, and verify response dimensions before persisting vectors.
-- Generate embeddings for chunks and store them with pgvector if available.
-- Retrieve relevant chunks using similarity search plus mandatory account-scope filtering.
-- Add a small retrieval test set and inspect returned source IDs/excerpts.
+- Use `evaluation/cases.json` for the 12 required golden scenarios: 3 straightforward, 2 multi-source, 2 unsupported, 1 ambiguous, 1 conflicting evidence, 1 exact identifier, 1 prompt injection, and 1 authorization/data-leakage case.
+- Run scenarios against the actual backend/retrieval/LLM path; fill `evaluation/results_template.csv` from observed outcomes.
+- Report retrieval success, citation validity, supported-answer behavior, no-answer correctness, latency, token/cost usage when available, and security failures.
+- The `validate_cases.py` script validates catalog structure only; it is not the model evaluation runner.
 
-### Step 3: LLM adapter and structured output
-- Place provider calls behind a small adapter with timeout and error mapping.
-- Define a Pydantic schema for suggested risk level, summary, risk factors, recommended actions, evidence references, and confidence.
-- Reject malformed or out-of-range output.
-- Keep AI-suggested risk separate from the stored account risk level.
+### Security demonstration
 
-### Step 4: Citation validation and no-answer path
-- Provide the model only retrieved, authorized evidence.
-- Validate every citation against the retrieval result; verify ID and excerpt.
-- Return insufficient-evidence/no-answer behavior when suitable support is absent.
-- Treat document contents as untrusted data to reduce prompt-injection risk.
-- Persist only validated insights and traceable evidence references.
+- Create two CSM users with different account assignments.
+- Attempt access to the other CSM's account and related records by changing IDs.
+- Verify account-scoped document retrieval and AI evidence are isolated as well.
+- Record exact responses and evidence; do not rely solely on the front end.
 
-**Exit check:** A question can be traced through authorization → retrieval → evidence → LLM → schema validation → citation validation → response, with safe failure behavior.
+### Performance / retrieval failure
 
-## 5. Phase 3 — Quality engineering (Thursday target)
+- Record one controlled retrieval failure, diagnose whether extraction, chunking, metadata, filtering, top-k, threshold, embedding, or generation was responsible, and document the result.
+- Run a repeatable performance benchmark with workload, environment, warm-up, sample count and median/p95. Do not confuse a better query plan with proven user-visible latency improvement.
 
-- Unit tests for business rules and task/risk transitions.
-- API tests for validation, authentication, authorization, and cross-account access.
-- Duplicate upload/idempotency tests.
-- Alembic upgrade → downgrade → upgrade test on a disposable database.
-- AI timeout, malformed structured response, insufficient evidence, invalid citation, and prompt-injection tests.
-- Retrieval failure: create a case where the source exists but retrieval misses it; diagnose extraction/chunking/metadata/filter/top-k/threshold/embedding/generation.
-- Performance: measure one real issue (N+1, unbounded list, repeated request, or poor DB filtering), improve it, and record before/after evidence.
-- Build at least 12 AI evaluation cases as specified in the assignment and report retrieval success, citation validity, no-answer behavior, latency/cost, and security failures.
-- Responsive UI, accessibility, logs, README, and limitations cleanup.
+### Documentation alignment
 
-## 6. Phase 4 — Production readiness and submission (Friday target)
+- Complete the required authorization matrix, evaluation report, known limitations and engineering reflection.
+- Reconcile proposed-versus-implemented descriptions in architecture, data-model and API contract documents.
+- Test setup instructions from a clean environment and confirm `.env`/credentials are never included in the repository.
 
-- Run from a clean environment using documented instructions.
-- Apply database migrations from a clean state.
-- Run backend tests, frontend tests, lint, typecheck, production build, AI evaluation, and security checks.
-- Review `.env.example` and Git history for secrets.
-- Submit documentation, tests/evaluation evidence, final commit hash, setup instructions, and architecture diagram.
-- Be ready to explain and modify important parts of the code.
+## 4. Final verification commands
 
-## 7. Priority when time is limited
+Backend, from `backend/` with the project virtual environment activated:
 
-1. Correct authorization and data isolation.
-2. Data model/migrations and core CRUD.
-3. A stable dashboard and API integration.
-4. Grounded AI analysis with verified citations and safe no-answer behavior.
-5. Required negative tests and evidence of performance improvement.
-6. Polish and optional search features.
+```bash
+python -m pytest -v
+alembic current
+alembic heads
+```
 
-Do not sacrifice the security gates to add more features.
+Frontend, from `frontend/`:
 
-## 8. Work session checkpoints for the current catch-up
+```bash
+npm run lint
+npm run build
+```
 
-The following is a realistic *first-pass catch-up schedule*, not a promise to deliver production quality in one night:
+Evaluation catalog structure, from the repository root:
 
-1. Review PK/FK and relationships; verify `DATA_MODEL.md`.
-2. Complete the six discovery documents and mark open decisions.
-3. Inspect the actual project repository; choose changes based on what already exists.
-4. Run the app and database before making changes.
-5. Complete one end-to-end non-AI slice (prefer account list/detail or tasks), including a test.
-6. Implement/verify account-level authorization before AI retrieval.
-7. Prepare the AI/RAG flow and implement the smallest testable slice if the foundation is stable.
-8. Record what works, what fails, and what remains; do not label untested features complete.
+```bash
+python evaluation/validate_cases.py
+```
+
+Before final handover:
+
+```bash
+git status -sb
+git log -1 --oneline
+git rev-list --left-right --count origin/main...main
+```
+
+The working tree should be clean after the final docs/evaluation commit, and the divergence count should be `0 0` after a successful push.
+
+## 5. Definition of done
+
+Do not call the assessment 100% complete until the application runs from documented setup, all backend/frontend checks pass, authorization attack paths are demonstrated, the migration cycle is evidenced, the 12-case evaluation results and required metrics are recorded, retrieval/performance findings are documented, no secrets are committed, and the candidate can explain the request and AI flows without relying on the generated code alone.
