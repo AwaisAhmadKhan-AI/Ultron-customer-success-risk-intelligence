@@ -35,7 +35,7 @@
     {
       "id": "EVAL-02",
       "category": "straightforward_supported",
-      "question": "What unresolved support issues were reported this month?",
+      "question": "How many unresolved support issues were reported this month?",
       "fixture": {
         "account": "ACCOUNT-A",
         "source": "DOC-SUPPORT-01",
