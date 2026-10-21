@@ -38,6 +38,7 @@ class RecommendationOutput(BaseModel):
 class AIModelOutput(BaseModel):
     evidence_sufficient: bool
     summary: str | None
+    summary_evidence: list[EvidenceReference] = Field(default_factory=list, max_length=6)
     suggested_risk_level: Literal[
         "low", "medium", "high", "critical"
     ] | None
@@ -58,9 +59,9 @@ class AIModelOutput(BaseModel):
                     "Sufficient-evidence result requires confidence."
                 )
 
-            if not self.risk_factors and not self.recommended_actions:
+            if not self.summary_evidence and not self.risk_factors and not self.recommended_actions:
                 raise ValueError(
-                    "Result must contain a supported finding or action."
+                    "Result must contain cited summary evidence, a supported finding, or an action."
                 )
 
         return self

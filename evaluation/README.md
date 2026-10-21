@@ -25,3 +25,16 @@ Record at least:
 - any security/data-leakage failures.
 
 Do not place real customer data, passwords, tokens or API keys in this dataset.
+
+
+## Run the live API-backed evaluation
+
+This live runner uploads only synthetic evaluation records to a dedicated, timestamped account, calls the actual AI-insight endpoint, records response citations and request latency, and archives its temporary accounts afterward. It asks for one CSM login and creates a temporary isolated CSM B for EVAL-12 using the local development database. Password input is hidden and is not written to result files.
+
+With the API running in another terminal, run from `backend/` with its virtual environment active:
+
+```bash
+python ../evaluation/run_live_evaluation.py
+```
+
+Type `YES` only when you intend to create synthetic evaluation data in your local development database. The runner writes timestamped CSV and Markdown files under `evaluation/`. It marks ambiguous/conflicting semantic checks `REVIEW` where heuristics cannot reliably judge correctness. The current API does not expose token/cost counters; those values are recorded as unavailable rather than guessed.
