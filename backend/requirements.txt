@@ -1,0 +1,19 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+psycopg[binary]
+pydantic-settings
+alembic
+PyJWT[crypto]
+pwdlib[argon2]
+python-multipart
+httpx
+openai
+pgvector
+pypdf
+pytest
+ruff
+JWT handling
+password hashing
+aur OAuth2
+pypdf
