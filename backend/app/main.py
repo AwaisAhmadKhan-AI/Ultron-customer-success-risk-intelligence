@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1.router import api_router
 from app.core.config import settings
 from app.api.auth import router as auth_router
+from app.api.admin_users import router as admin_users_router
 from app.api.accounts import router as accounts_router
 from app.api.documents import router as documents_router
 from app.api.ai_insights import router as ai_insights_router
@@ -22,6 +23,10 @@ app = FastAPI(
 )
 app.include_router(
     auth_router,
+    prefix=settings.api_v1_prefix,
+)
+app.include_router(
+    admin_users_router,
     prefix=settings.api_v1_prefix,
 )
 app.include_router(
